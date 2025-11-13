@@ -2,6 +2,7 @@
 Training script for CAGE Challenge 4 using RLlib PPO
 """
 
+import os
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -10,7 +11,6 @@ from ray.tune import register_env
 from CybORG import CybORG
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
-from CybORG.Agents.Wrappers import EnterpriseMAE
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -18,6 +18,8 @@ warnings.filterwarnings("ignore")
 
 def create_env(env_config):
     """Create CAGE Challenge 4 environment"""
+    from CybORG.Agents.Wrappers import EnterpriseMAE
+
     sg = EnterpriseScenarioGenerator(
         blue_agent_class=SleepAgent,
         green_agent_class=EnterpriseGreenAgent,
@@ -32,26 +34,25 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
     """
     Train CAGE Challenge 4 agents using PPO
     """
-    print("=" * 60)
-    print("CAGE Challenge 4 - RLlib Training")
-    print("=" * 60)
-    print(f"Episodes: {num_iterations}")
-    print(f"Episode length: {episode_length}")
-    print(f"Checkpoint directory: {checkpoint_dir}")
+    print(f"\n🎯 Training: {num_iterations} iterations, episode length: {episode_length}")
     
-    # Initialize Ray
+    # Initialize Ray with increased timeout for Windows
     if not ray.is_initialized():
-        ray.init(ignore_reinit_error=True, log_to_driver=False)
+        ray.init(
+            ignore_reinit_error=True, 
+            log_to_driver=False,
+            num_cpus=2,  # Limit CPUs to avoid resource issues
+            object_store_memory=500_000_000,  # 500MB
+            _system_config={
+                "object_timeout_milliseconds": 200000,
+            }
+        )
     
     # Register environment
     register_env("CAGE4", create_env)
     
     # Create environment to get spaces
     env = create_env({'episode_length': episode_length})
-    
-    print(f"Environment agents: {env.agents}")
-    print(f"Action spaces: {[env.action_space(agent).n for agent in env.agents]}")
-    print(f"Observation spaces: {[env.observation_space(agent).shape for agent in env.agents]}")
     
     # Policy mapping function
     def policy_mapping_fn(agent_id, episode, worker, **kwargs):
@@ -60,7 +61,7 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
         else:
             return "policy_small"  # Agents 0-3 have same spaces
     
-    # PPO configuration
+    # Improved PPO configuration
     config = (
         PPOConfig()
         .framework("torch")
@@ -69,22 +70,48 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
             env_config={'episode_length': episode_length}
         )
         .training(
-            lr=3e-4,
-            gamma=0.9,
+            # Learning rate with schedule for better convergence
+            lr=5e-4,
+            lr_schedule=[
+                [0, 5e-4],
+                [500000, 1e-4],
+                [1000000, 5e-5],
+            ],
+            # Discount factor - higher for long-term planning
+            gamma=0.99,
             lambda_=0.95,
+            # PPO clipping
             clip_param=0.2,
-            entropy_coeff=0.01,
-            train_batch_size=2000,
-            minibatch_size=64,
+            # Higher entropy for more exploration
+            entropy_coeff=0.05,
+            entropy_coeff_schedule=[
+                [0, 0.05],
+                [500000, 0.01],
+            ],
+            # Value function coefficient
+            vf_loss_coeff=0.5,
+            # Larger batch sizes for stable learning
+            train_batch_size=4000,
+            minibatch_size=128,
             num_epochs=10,
+            # Gradient clipping
+            grad_clip=0.5,
+            # KL divergence target
+            kl_coeff=0.2,
+            kl_target=0.01,
+            # Larger network for complex environment
             model={
-                "fcnet_hiddens": [128, 128],
+                "fcnet_hiddens": [256, 256, 128],
                 "fcnet_activation": "relu",
+                "vf_share_layers": False,  # Separate value function network
             }
         )
         .env_runners(
-            num_env_runners=1,
-            rollout_fragment_length=200,
+            # More parallel workers for faster learning
+            num_env_runners=2,
+            rollout_fragment_length=250,
+            # Enable exploration
+            explore=True,
         )
         .multi_agent(
             policies={
@@ -98,47 +125,60 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
                 )
             },
             policy_mapping_fn=policy_mapping_fn,
+            # Train all policies
+            policies_to_train=["policy_small", "policy_large"],
         )
         .debugging(log_level="WARN")
         .resources(num_gpus=0)
+        .reporting(
+            min_sample_timesteps_per_iteration=1000,
+        )
     )
     
     # Build and train
     algo = config.build()
     
-    print("\nStarting training...")
+    # Try to restore from checkpoint if it exists
+    abs_checkpoint_dir = os.path.abspath(checkpoint_dir)
+    if os.path.exists(abs_checkpoint_dir) and os.path.isdir(abs_checkpoint_dir):
+        checkpoint_files = [f for f in os.listdir(abs_checkpoint_dir) if f.startswith('algorithm_state')]
+        if checkpoint_files:
+            try:
+                algo.restore(abs_checkpoint_dir)
+                print("📂 Resumed from checkpoint")
+            except Exception as e:
+                print("🆕 Starting fresh")
+        else:
+            print("🆕 Starting fresh")
+    else:
+        print("🆕 Starting fresh")
+    
     best_reward = float('-inf')
     
     for i in range(num_iterations):
         try:
             result = algo.train()
             
-            # Get reward information from env_runners (where actual rewards are stored)
+            # Get reward information from env_runners
             env_runners = result.get("env_runners", {})
             episode_reward_mean = env_runners.get("episode_reward_mean", 0)
-            episode_reward_min = env_runners.get("episode_reward_min", 0)
-            episode_reward_max = env_runners.get("episode_reward_max", 0)
-            episodes_this_iter = env_runners.get("episodes_this_iter", 0)
             
-            print(f"Iteration {i+1:2d}/{num_iterations}: "
-                  f"Mean={episode_reward_mean:7.1f}, "
-                  f"Min={episode_reward_min:7.1f}, "
-                  f"Max={episode_reward_max:7.1f}, "
-                  f"Episodes={episodes_this_iter}")
-            
+            # Track improvement
             if episode_reward_mean > best_reward:
+                improvement = episode_reward_mean - best_reward
                 best_reward = episode_reward_mean
-                print(f"  → New best: {best_reward:.1f}")
+                print(f"[{i+1:3d}/{num_iterations}] Reward: {episode_reward_mean:7.1f} ✓ (+{improvement:.1f})")
+            else:
+                print(f"[{i+1:3d}/{num_iterations}] Reward: {episode_reward_mean:7.1f}")
             
         except Exception as e:
-            print(f"Training iteration {i+1} failed: {e}")
+            print(f"[{i+1}] Error: {e}")
             continue
     
-    # Save model
+    # Save final model as trained_model
     checkpoint_path = algo.save(checkpoint_dir)
-    print(f"\nTraining completed!")
-    print(f"Best reward: {best_reward:.1f}")
-    print(f"Model saved to: {checkpoint_path}")
+    print(f"\n✅ Done! Best reward: {best_reward:.1f}")
+    print(f"💾 Saved to: {checkpoint_dir}")
     
     # Cleanup
     algo.stop()
@@ -163,4 +203,3 @@ if __name__ == "__main__":
         checkpoint_dir=args.checkpoint_dir
     )
     
-    print(f"\n✅ Training completed! Model saved at: {checkpoint_path}")
