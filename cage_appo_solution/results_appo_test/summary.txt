@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: RLlib APPO Multi-Agent Defense, Team: AI Cyber Defense Team, Technique: APPO (Asynchronous Proximal Policy Optimization)
+Average reward is: -6080.1 with a standard deviation of 1758.072236705217
+Using agents {'blue_agent_0': APPOAgent, 'blue_agent_1': APPOAgent, 'blue_agent_2': APPOAgent, 'blue_agent_3': APPOAgent, 'blue_agent_4': APPOAgent}

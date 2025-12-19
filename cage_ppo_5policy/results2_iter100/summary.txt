@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: PPO with 5 Separate Policies, Team: AI Cyber Defense, Technique: PPO (5 dedicated policies)
+Average reward is: -6994.875 with a standard deviation of 1400.990204666481
+Using agents {'blue_agent_0': PPOAgent, 'blue_agent_1': PPOAgent, 'blue_agent_2': PPOAgent, 'blue_agent_3': PPOAgent, 'blue_agent_4': PPOAgent}

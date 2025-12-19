@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: RLlib DQN Multi-Agent Defense, Team: AI Cyber Defense Team, Technique: Multi-Agent DQN
+Average reward is: -6806.65 with a standard deviation of 1474.3184785913081
+Using agents {'blue_agent_0': DQNAgent, 'blue_agent_1': DQNAgent, 'blue_agent_2': DQNAgent, 'blue_agent_3': DQNAgent, 'blue_agent_4': DQNAgent}
