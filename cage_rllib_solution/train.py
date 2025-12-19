@@ -1,8 +1,12 @@
 """
 Training script for CAGE Challenge 4 using RLlib PPO
+With optional reward shaping for better learning signals.
 """
 
 import os
+import warnings
+warnings.filterwarnings("ignore")
+
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -11,15 +15,14 @@ from ray.tune import register_env
 from CybORG import CybORG
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
+from CybORG.Agents.Wrappers import EnterpriseMAE
 
-import warnings
-warnings.filterwarnings("ignore")
+# Import reward shaping wrapper
+from reward_shaping_wrapper import RewardShapingMAE
 
 
 def create_env(env_config):
-    """Create CAGE Challenge 4 environment"""
-    from CybORG.Agents.Wrappers import EnterpriseMAE
-
+    """Create CAGE Challenge 4 environment (standard)"""
     sg = EnterpriseScenarioGenerator(
         blue_agent_class=SleepAgent,
         green_agent_class=EnterpriseGreenAgent,
@@ -30,11 +33,28 @@ def create_env(env_config):
     return EnterpriseMAE(cyborg)
 
 
-def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rllib_solution/trained_model"):
+def create_shaped_env(env_config):
+    """Create CAGE Challenge 4 environment with reward shaping"""
+    sg = EnterpriseScenarioGenerator(
+        blue_agent_class=SleepAgent,
+        green_agent_class=EnterpriseGreenAgent,
+        red_agent_class=FiniteStateRedAgent,
+        steps=env_config.get('episode_length', 500),
+    )
+    cyborg = CybORG(scenario_generator=sg)
+    return RewardShapingMAE(cyborg)
+
+
+def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rllib_solution/trained_model",
+                 use_reward_shaping=False):
     """
     Train CAGE Challenge 4 agents using PPO
+    
+    Args:
+        use_reward_shaping: If True, use shaped rewards for better learning
     """
-    print(f"\n🎯 Training: {num_iterations} iterations, episode length: {episode_length}")
+    shaping_str = " (with reward shaping)" if use_reward_shaping else ""
+    print(f"\n🎯 Training: {num_iterations} iterations, episode length: {episode_length}{shaping_str}")
     
     # Initialize Ray with increased timeout for Windows
     if not ray.is_initialized():
@@ -48,11 +68,12 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
             }
         )
     
-    # Register environment
-    register_env("CAGE4", create_env)
+    # Register environment (with or without reward shaping)
+    env_creator = create_shaped_env if use_reward_shaping else create_env
+    register_env("CAGE4", env_creator)
     
     # Create environment to get spaces
-    env = create_env({'episode_length': episode_length})
+    env = env_creator({'episode_length': episode_length})
     
     # Policy mapping function
     def policy_mapping_fn(agent_id, episode, worker, **kwargs):
@@ -192,14 +213,16 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Train CAGE Challenge 4 agents")
     parser.add_argument("--iterations", type=int, default=20, help="Training iterations")
-    parser.add_argument("--episode-length", type=int, default=500, help="Episode length (matches evaluation)")
-    parser.add_argument("--checkpoint-dir", type=str, default="cage_rllib_solution/trained_model", help="Checkpoint directory")
+    parser.add_argument("--episode-length", type=int, default=500, help="Episode length")
+    parser.add_argument("--checkpoint-dir", type=str, default="cage_rllib_solution/trained_model")
+    parser.add_argument("--reward-shaping", action="store_true", help="Enable reward shaping")
     
     args = parser.parse_args()
     
     checkpoint_path = train_agents(
         num_iterations=args.iterations,
         episode_length=args.episode_length,
-        checkpoint_dir=args.checkpoint_dir
+        checkpoint_dir=args.checkpoint_dir,
+        use_reward_shaping=args.reward_shaping
     )
     

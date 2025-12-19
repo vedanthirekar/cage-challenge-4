@@ -12,7 +12,7 @@ from rllib_agent import RLlibAgent
 
 # Get absolute path to trained model relative to this file
 SUBMISSION_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(SUBMISSION_DIR, "trained_model")
+MODEL_PATH = os.path.join(SUBMISSION_DIR, "trained_model_shaped")
 
 
 class Submission:

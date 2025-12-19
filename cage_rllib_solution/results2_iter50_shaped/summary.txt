@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: RLlib PPO Multi-Agent Defense, Team: AI Cyber Defense Team, Technique: Multi-Agent PPO
+Average reward is: -2620.8 with a standard deviation of 678.1870685880114
+Using agents {'blue_agent_0': RLlibAgent, 'blue_agent_1': RLlibAgent, 'blue_agent_2': RLlibAgent, 'blue_agent_3': RLlibAgent, 'blue_agent_4': RLlibAgent}
