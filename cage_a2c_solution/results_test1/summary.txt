@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: Stable-Baselines3 A2C Multi-Agent Defense, Team: AI Cyber Defense Team, Technique: A2C (Advantage Actor-Critic)
+Average reward is: -6840 with a standard deviation of 1385.9292911256332
+Using agents {'blue_agent_0': A2CAgent, 'blue_agent_1': A2CAgent, 'blue_agent_2': A2CAgent, 'blue_agent_3': A2CAgent, 'blue_agent_4': A2CAgent}

@@ -1,0 +1,4 @@
+CybORG v4.0, Scenario4
+Author: RLlib IMPALA Multi-Agent Defense, Team: AI Cyber Defense Team, Technique: IMPALA (Importance Weighted Actor-Learner Architecture)
+Average reward is: -6674.95 with a standard deviation of 1210.7225272038131
+Using agents {'blue_agent_0': IMPALAAgent, 'blue_agent_1': IMPALAAgent, 'blue_agent_2': IMPALAAgent, 'blue_agent_3': IMPALAAgent, 'blue_agent_4': IMPALAAgent}

@@ -107,8 +107,8 @@ def train_agents(num_iterations=25, episode_length=500, checkpoint_dir="cage_rll
             }
         )
         .env_runners(
-            # More parallel workers for faster learning
-            num_env_runners=2,
+            # More parallel workers for faster learning (increase for faster training)
+            num_env_runners=2,  # Increased from 2 for 12-core CPU
             rollout_fragment_length=250,
             # Enable exploration
             explore=True,
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Train CAGE Challenge 4 agents")
     parser.add_argument("--iterations", type=int, default=20, help="Training iterations")
-    parser.add_argument("--episode-length", type=int, default=200, help="Episode length")
+    parser.add_argument("--episode-length", type=int, default=500, help="Episode length (matches evaluation)")
     parser.add_argument("--checkpoint-dir", type=str, default="cage_rllib_solution/trained_model", help="Checkpoint directory")
     
     args = parser.parse_args()
